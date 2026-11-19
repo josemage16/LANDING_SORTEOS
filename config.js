@@ -23,9 +23,7 @@ const SORTEO_CONFIG = {
   },
 
   // URL de la Aplicación Web de Google Apps Script (termina en /exec)
-  // Para activar el guardado en la hoja "datos", desplegá `google-apps-script.js`
-  // desde Extensiones > Apps Script en tu planilla y pegá aquí la URL generada.
-  WEBHOOK_URL: "",
+  WEBHOOK_URL: "https://script.google.com/macros/s/AKfycbxkN4OHQ8FrQphkjx0VQNjQCeEDG0yk5eNi6JcCCH6qsCBBttjui1_HQMakiyWwjAKV2Q/exec",
 
   // Fallback solo si no hubiera conexión momentánea con Google Sheets
   FALLBACK_DRAW_DATE_ISO: "2026-12-23T18:00:00-03:00",
