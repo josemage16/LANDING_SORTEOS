@@ -1,41 +1,32 @@
-# Landing Sorteos VIDA
+# Landing Sorteo VIDA
 
-Landing page oficial para sorteos y campañas promocionales de **VIDA Uruguay**, lista para publicar en **GitHub Pages** e integrar con **Google Sheets** + notificaciones por correo electrónico.
+Landing page oficial del **Sorteo VIDA** (orden de compra valor **$3.000** en tu comercio de confianza) con el look & feel de `www.vida.com.uy`, integrada en tiempo real con Google Sheets y lista para **GitHub Pages**.
 
-Repositorio: https://github.com/josemage16/LANDING_SORTEOS
+- **Repositorio GitHub:** https://github.com/josemage16/LANDING_SORTEOS
+- **Google Sheet vinculada:** https://docs.google.com/spreadsheets/d/1tGOVBhMYDaa232YfXEDzJFldD2feLKQz5T7ArZ1ZMQA/edit?usp=drivesdk
 
-## Estructura del Proyecto
+## Integración con Google Sheets
 
-- `index.html` — Estructura completa de la landing (Hero con cuenta regresiva, Premios, Pasos, Formulario con vista previa de cupón en tiempo real, Club Buena Vida, FAQ y Modales).
-- `styles.css` — Sistema de diseño corporativo VIDA (`#1b3580`, `#942143`, `#e5b25d`), responsive y optimizado para impresión del cupón.
-- `app.js` — Cuenta regresiva automática, formateo y validación de Cédula (CI) y celular uruguayo, vista previa en vivo del cupón, generación de código único `VIDA-SRT-XXXXXX`, confeti y envío a webhook.
-- `config.js` — Configuración centralizada de campaña (nombre, fecha del sorteo, contacto y URL de Google Sheets / Apps Script).
-- `google-apps-script.js` — Script para Google Sheets que guarda cada participación y envía alerta por email.
-- `push.bat` — Script de sincronización rápida con GitHub (`main`).
-- `assets/` — Logos e imágenes corporativas de VIDA y Club Buena Vida.
+| Hoja | Función | Estado |
+| --- | --- | --- |
+| `locales` | Alimenta dinámicamente el desplegable **Local** del formulario. | **Activo automáticamente** en vivo desde Google Sheets. |
+| `fechas` | Alimenta dinámicamente la **cuenta regresiva** hasta el próximo sorteo. | **Activo automáticamente** en vivo desde Google Sheets. |
+| `datos` | Guarda **Timestamp, Local, Nombre y Celular** de cada participante. | Requiere desplegar `google-apps-script.js` y pegar la URL `/exec` en `config.js`. |
 
-## Cómo Personalizar una Nueva Campaña
+## Cómo activar el guardado en la hoja `datos` (3 minutos)
 
-1. Abrí `config.js` y actualizá:
-   - `CAMPAIGN_NAME`
-   - `DRAW_DATE_ISO` y `DRAW_DATE_LABEL`
-   - `SPREADSHEET_URL` y `WEBHOOK_URL`
-2. Editá los títulos y descripciones de los 3 premios en `index.html` (sección `#premios`).
-
-## Conectar Google Sheets (Opcional)
-
-1. Creá una planilla en Google Sheets y copiá su ID desde la URL (`/d/<ID>/edit`).
-2. Abrí **Extensiones > Apps Script** y pegá el contenido de `google-apps-script.js`, reemplazando `SPREADSHEET_ID`.
-3. Implementá como **Aplicación web** con acceso **Cualquier usuario (Anyone)**.
-4. Copiá la URL `/exec` generada y pegala en `WEBHOOK_URL` dentro de `config.js`.
+1. Abrí tu planilla: https://docs.google.com/spreadsheets/d/1tGOVBhMYDaa232YfXEDzJFldD2feLKQz5T7ArZ1ZMQA/edit?usp=drivesdk
+2. Andá a **Extensiones > Apps Script**.
+3. Borrá el código por defecto en `Código.gs` y pegá todo el contenido de `google-apps-script.js`.
+4. Guardá (`Ctrl+S`).
+5. Hacé clic en **Implementar > Nueva implementación** → Tipo: **Aplicación web**:
+   - **Ejecutar como:** `Yo`
+   - **Quién tiene acceso:** `Cualquier usuario (Anyone)`
+6. Autorizá los permisos y copiá la **URL de la aplicación web** (termina en `/exec`).
+7. Pegá esa URL en `WEBHOOK_URL` dentro de `config.js` y ejecutá `push.bat` para sincronizar con GitHub.
 
 ## Publicar en GitHub Pages
 
 1. Entrá a https://github.com/josemage16/LANDING_SORTEOS/settings/pages
-2. En **Build and deployment > Source**, seleccioná **Deploy from a branch**.
-3. Elegí la rama `main` y la carpeta `/ (root)`, luego **Save**.
-4. Tu landing quedará publicada en `https://josemage16.github.io/LANDING_SORTEOS/`.
-
-## Sincronizar Cambios a GitHub
-
-Ejecutá `push.bat` (doble clic) para hacer `git add`, `git commit` y `git push origin main`.
+2. En **Source**, seleccioná **Deploy from a branch** → rama `main` → `/ (root)` → **Save**.
+3. La landing quedará online en `https://josemage16.github.io/LANDING_SORTEOS/`.

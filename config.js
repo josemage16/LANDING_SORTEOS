@@ -1,42 +1,47 @@
 /**
  * ==========================================================================
- * CONFIGURACIÓN GENERAL - LANDING SORTEOS VIDA
+ * CONFIGURACIÓN GENERAL - LANDING SORTEO VIDA
  * ==========================================================================
- * Edita este archivo para actualizar la fecha del sorteo, los premios,
- * los datos de contacto o la conexión con Google Sheets sin tocar el resto
- * del código.
+ * Planilla de Google Sheets vinculada:
+ * https://docs.google.com/spreadsheets/d/1tGOVBhMYDaa232YfXEDzJFldD2feLKQz5T7ArZ1ZMQA/edit?usp=drivesdk
+ *
+ * - Hoja "locales" -> Alimenta dinámicamente el desplegable de Locales
+ * - Hoja "fechas"  -> Alimenta dinámicamente la cuenta regresiva del próximo sorteo
+ * - Hoja "datos"   -> Guarda Local, Nombre, Celular y Timestamp de cada registro
  */
 
 const SORTEO_CONFIG = {
-  // Nombre de la campaña / sorteo actual (se guarda también en Google Sheets)
-  CAMPAIGN_NAME: "Gran Sorteo VIDA 2026",
+  // ID de la planilla de Google Sheets
+  SPREADSHEET_ID: "1tGOVBhMYDaa232YfXEDzJFldD2feLKQz5T7ArZ1ZMQA",
+  SPREADSHEET_URL: "https://docs.google.com/spreadsheets/d/1tGOVBhMYDaa232YfXEDzJFldD2feLKQz5T7ArZ1ZMQA/edit?usp=drivesdk",
 
-  // Fecha y hora de cierre / realización del sorteo (formato ISO con zona horaria de Uruguay -03:00)
-  // El contador regresivo se calcula automáticamente con base en esta fecha.
-  DRAW_DATE_ISO: "2026-12-20T18:00:00-03:00",
-  DRAW_DATE_LABEL: "20 de diciembre de 2026 · 18:00 hs",
+  // Nombres exactos de las pestañas en Google Sheets
+  SHEETS: {
+    LOCALES: "locales",
+    FECHAS: "fechas",
+    DATOS: "datos"
+  },
 
-  // Prefijo del código de cupón digital generado para cada participante
-  COUPON_PREFIX: "VIDA-SRT",
+  // URL de la Aplicación Web de Google Apps Script (termina en /exec)
+  // Para activar el guardado en la hoja "datos", desplegá `google-apps-script.js`
+  // desde Extensiones > Apps Script en tu planilla y pegá aquí la URL generada.
+  WEBHOOK_URL: "",
 
-  // Teléfono y WhatsApp oficial de contacto
+  // Fallback solo si no hubiera conexión momentánea con Google Sheets
+  FALLBACK_DRAW_DATE_ISO: "2026-12-23T18:00:00-03:00",
+  FALLBACK_LOCALES: ["A", "B", "C", "D", "E"],
+
+  // Hora por defecto del sorteo cuando la hoja "fechas" solo indica día/mes/año (Uruguay -03:00)
+  DRAW_DEFAULT_HOUR: "18:00:00",
+
+  // Enlaces oficiales VIDA
   PHONE_DISPLAY: "0800 8320",
   PHONE_LINK: "tel:08008320",
   WHATSAPP_NUMBER: "59822043739",
-  WHATSAPP_MESSAGE: "Hola, quisiera consultar sobre el Gran Sorteo VIDA.",
-
-  // ========================================================================
-  // INTEGRACIÓN GOOGLE SHEETS & EMAIL (Google Apps Script)
-  // ========================================================================
-  // 1. Crea una hoja en Google Sheets para tus participantes.
-  // 2. Sigue los pasos en `google-apps-script.js` y `README.md`.
-  // 3. Pega aquí la URL de la planilla y la URL del Webhook (/exec).
-  SPREADSHEET_URL: "",
-  WEBHOOK_URL: "",
-
-  // Correos destinatarios de alertas (referencia)
-  EMAILS: ["jge@vida.com.uy", "josemage@gmail.com"]
+  WHATSAPP_MESSAGE: "Hola, quisiera consultar sobre el Sorteo VIDA y cómo afiliarme.",
+  BUENAVIDA_URL: "https://www.vida.com.uy/buenavida",
+  INSTAGRAM_HANDLE: "@vidaserviciodecomp",
+  INSTAGRAM_URL: "https://www.instagram.com/vidaserviciodecomp/"
 };
 
-// Exportar globalmente
 window.SORTEO_CONFIG = SORTEO_CONFIG;

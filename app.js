@@ -1,36 +1,30 @@
 /**
- * LANDING SORTEOS VIDA - Interactive Logic
- * Countdown timer, live coupon preview, Uruguayan CI & phone formatting/validation,
- * Google Sheets webhook submission, confetti modal, FAQ accordion & share actions.
+ * ==========================================================================
+ * LANDING SORTEO VIDA - Lógica Interactiva & Sincronización Google Sheets
+ * ==========================================================================
+ * - Lee la hoja "locales" en tiempo real para poblar el dropdown de Locales.
+ * - Lee la hoja "fechas" en tiempo real para alimentar la cuenta regresiva.
+ * - Envía Local, Nombre y Celular (+ Timestamp en Apps Script) a la hoja "datos".
  */
 
 document.addEventListener('DOMContentLoaded', () => {
   const cfg = window.SORTEO_CONFIG || {};
+  const SPREADSHEET_ID = cfg.SPREADSHEET_ID || '1tGOVBhMYDaa232YfXEDzJFldD2feLKQz5T7ArZ1ZMQA';
+  const SHEET_LOCALES = (cfg.SHEETS && cfg.SHEETS.LOCALES) || 'locales';
+  const SHEET_FECHAS = (cfg.SHEETS && cfg.SHEETS.FECHAS) || 'fechas';
 
-  // --- Sync Campaign Config into UI ---
-  const campaignName = cfg.CAMPAIGN_NAME || 'Gran Sorteo VIDA 2026';
-  const drawDateLabel = cfg.DRAW_DATE_LABEL || '20 de diciembre de 2026 · 18:00 hs';
-  const couponPrefix = cfg.COUPON_PREFIX || 'VIDA-SRT';
-
-  const elTopDate = document.getElementById('top-draw-date');
-  const elHeroCampaign = document.getElementById('hero-campaign-name');
+  // --- Year & Header ---
   const elYear = document.getElementById('current-year');
-
-  if (elTopDate) elTopDate.textContent = drawDateLabel;
-  if (elHeroCampaign) elHeroCampaign.textContent = campaignName;
   if (elYear) elYear.textContent = String(new Date().getFullYear());
 
-  // --- Sticky Header Shadow ---
   const header = document.getElementById('main-header');
   window.addEventListener('scroll', () => {
-    if (!header) return;
-    header.classList.toggle('scrolled', window.scrollY > 20);
+    if (header) header.classList.toggle('scrolled', window.scrollY > 20);
   });
 
   // --- Mobile Navigation Drawer ---
   const mobileBtn = document.getElementById('mobile-menu-btn');
   const mobileDrawer = document.getElementById('mobile-drawer');
-
   if (mobileBtn && mobileDrawer) {
     mobileBtn.addEventListener('click', () => {
       const isOpen = mobileDrawer.classList.toggle('open');
@@ -49,60 +43,278 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- Live Countdown Timer ---
-  const targetTimestamp = Date.parse(cfg.DRAW_DATE_ISO || '2026-12-20T18:00:00-03:00');
+  // ========================================================================
+  // 1. LECTURA EN VIVO DESDE GOOGLE SHEETS (JSONP - Sin bloqueos CORS)
+  // ========================================================================
+  let gvizCounter = 0;
+
+  function fetchGoogleSheetColumn(sheetName) {
+    return new Promise((resolve, reject) => {
+      const cbName = `__vidaGvizCb_${Date.now()}_${++gvizCounter}`;
+      const script = document.createElement('script');
+      let settled = false;
+
+      const cleanup = () => {
+        try { delete window[cbName]; } catch (_) { window[cbName] = undefined; }
+        if (script.parentNode) script.parentNode.removeChild(script);
+      };
+
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error(`Tiempo de espera agotado al leer la hoja "${sheetName}"`));
+      }, 9000);
+
+      window[cbName] = (response) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        cleanup();
+
+        if (!response || response.status !== 'ok' || !response.table) {
+          reject(new Error(`Respuesta inválida de la hoja "${sheetName}"`));
+          return;
+        }
+
+        const rows = response.table.rows || [];
+        const values = [];
+
+        rows.forEach((row, idx) => {
+          const cell = row && row.c && row.c[0];
+          if (!cell) return;
+          const raw = cell.f !== undefined && cell.f !== null ? String(cell.f).trim() : (cell.v !== undefined && cell.v !== null ? String(cell.v).trim() : '');
+          if (!raw) return;
+          // Omitir fila de título si Google Visualization la devolvió como primera fila de datos
+          if (idx === 0 && /^(locales?|comercio|comercios|pr[oó]ximo\s*sorteo|fechas?)$/i.test(raw)) {
+            return;
+          }
+          values.push({ raw, v: cell.v, f: cell.f });
+        });
+
+        resolve(values);
+      };
+
+      script.onerror = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        cleanup();
+        reject(new Error(`No se pudo cargar la hoja "${sheetName}"`));
+      };
+
+      const encodedSheet = encodeURIComponent(sheetName);
+      script.src = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=responseHandler:${cbName}&sheet=${encodedSheet}&_=${Date.now()}`;
+      document.head.appendChild(script);
+    });
+  }
+
+  // ========================================================================
+  // 2. CARGA DEL DROPDOWN DE LOCALES (Hoja "locales")
+  // ========================================================================
+  const selectLocal = document.getElementById('local');
+  const localesHint = document.getElementById('locales-status-hint');
+
+  function populateLocales(localesList, sourceLabel) {
+    if (!selectLocal) return;
+    selectLocal.innerHTML = '';
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Seleccioná tu local / comercio';
+    selectLocal.appendChild(placeholder);
+
+    localesList.forEach((name) => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      selectLocal.appendChild(opt);
+    });
+
+    selectLocal.disabled = false;
+    if (localesHint) {
+      localesHint.innerHTML = `<i class="fa-solid fa-circle-check" style="color: var(--success);"></i> ${sourceLabel}`;
+    }
+  }
+
+  async function loadLocales() {
+    try {
+      const items = await fetchGoogleSheetColumn(SHEET_LOCALES);
+      const uniqueLocales = [...new Set(items.map((i) => i.raw).filter(Boolean))];
+      if (uniqueLocales.length > 0) {
+        populateLocales(uniqueLocales, `${uniqueLocales.length} locales disponibles actualizados.`);
+        return;
+      }
+      throw new Error('La hoja locales está vacía');
+    } catch (err) {
+      console.warn('Usando lista de respaldo de locales:', err);
+      const fallback = cfg.FALLBACK_LOCALES || ['A', 'B', 'C', 'D', 'E'];
+      populateLocales(fallback, 'Locales cargados.');
+    }
+  }
+
+  // ========================================================================
+  // 3. CUENTA REGRESIVA DESDE LA HOJA "fechas"
+  // ========================================================================
   const cdDays = document.getElementById('cd-days');
   const cdHours = document.getElementById('cd-hours');
   const cdMinutes = document.getElementById('cd-minutes');
   const cdSeconds = document.getElementById('cd-seconds');
+  const elTopDate = document.getElementById('top-draw-date');
+  const elHeroTicketDate = document.getElementById('hero-ticket-date');
+  const elCountdownDateLabel = document.getElementById('countdown-date-label');
+  const elPreviewFecha = document.getElementById('preview-fecha');
+  const elCountdownStatus = document.getElementById('countdown-status-msg');
 
-  function updateCountdown() {
-    if (!cdDays || Number.isNaN(targetTimestamp)) return;
-    const diff = Math.max(0, targetTimestamp - Date.now());
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-    const minutes = Math.floor((diff / (1000 * 60)) % 60);
-    const seconds = Math.floor((diff / 1000) % 60);
+  const defaultTime = cfg.DRAW_DEFAULT_HOUR || '18:00:00';
+  let countdownInterval = null;
 
-    cdDays.textContent = String(days).padStart(2, '0');
-    cdHours.textContent = String(hours).padStart(2, '0');
-    cdMinutes.textContent = String(minutes).padStart(2, '0');
-    cdSeconds.textContent = String(seconds).padStart(2, '0');
+  function parseSheetDate(entry) {
+    const str = entry.raw.trim();
+
+    // Caso 1: Formato Google gviz Date(YYYY, M, D[, h, m, s])
+    if (typeof entry.v === 'string' && /^Date\(/.test(entry.v)) {
+      const parts = entry.v.match(/\d+/g).map(Number);
+      if (parts.length >= 3) {
+        const y = parts[0];
+        const m = String(parts[1] + 1).padStart(2, '0');
+        const d = String(parts[2]).padStart(2, '0');
+        const hh = parts[3] !== undefined ? String(parts[3]).padStart(2, '0') : defaultTime.slice(0, 2);
+        const mm = parts[4] !== undefined ? String(parts[4]).padStart(2, '0') : defaultTime.slice(3, 5);
+        const ss = parts[5] !== undefined ? String(parts[5]).padStart(2, '0') : defaultTime.slice(6, 8);
+        return new Date(`${y}-${m}-${d}T${hh}:${mm}:${ss}-03:00`);
+      }
+    }
+
+    // Caso 2: DD/MM/YYYY [HH:mm[:ss]]
+    const dmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (dmy) {
+      const d = dmy[1].padStart(2, '0');
+      const m = dmy[2].padStart(2, '0');
+      const y = dmy[3];
+      const timePart = dmy[4]
+        ? `${dmy[4].padStart(2, '0')}:${dmy[5]}:${dmy[6] || '00'}`
+        : defaultTime;
+      return new Date(`${y}-${m}-${d}T${timePart}-03:00`);
+    }
+
+    // Caso 3: YYYY-MM-DD [HH:mm[:ss]]
+    const ymd = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (ymd) {
+      const y = ymd[1];
+      const m = ymd[2].padStart(2, '0');
+      const d = ymd[3].padStart(2, '0');
+      const timePart = ymd[4]
+        ? `${ymd[4].padStart(2, '0')}:${ymd[5]}:${ymd[6] || '00'}`
+        : defaultTime;
+      return new Date(`${y}-${m}-${d}T${timePart}-03:00`);
+    }
+
+    const parsed = new Date(str);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
-  updateCountdown();
-  setInterval(updateCountdown, 1000);
+  function formatDateLongES(date) {
+    return new Intl.DateTimeFormat('es-UY', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'America/Montevideo'
+    }).format(date);
+  }
 
-  // --- Form Elements & Live Coupon Preview ---
+  function formatDateShortES(date) {
+    return new Intl.DateTimeFormat('es-UY', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'America/Montevideo'
+    }).format(date);
+  }
+
+  function startCountdown(targetDate) {
+    const longLabel = formatDateLongES(targetDate);
+    const shortLabel = formatDateShortES(targetDate);
+
+    if (elTopDate) elTopDate.textContent = longLabel;
+    if (elHeroTicketDate) elHeroTicketDate.textContent = shortLabel;
+    if (elCountdownDateLabel) elCountdownDateLabel.textContent = longLabel;
+    if (elPreviewFecha) elPreviewFecha.textContent = shortLabel;
+
+    const targetMs = targetDate.getTime();
+
+    const tick = () => {
+      const diff = targetMs - Date.now();
+      if (diff <= 0) {
+        if (cdDays) cdDays.textContent = '00';
+        if (cdHours) cdHours.textContent = '00';
+        if (cdMinutes) cdMinutes.textContent = '00';
+        if (cdSeconds) cdSeconds.textContent = '00';
+        if (elCountdownStatus) {
+          elCountdownStatus.textContent = '¡Llegó el día del sorteo! Seguinos en @vidaserviciodecomp para conocer a los ganadores.';
+          elCountdownStatus.classList.remove('hidden');
+        }
+        return;
+      }
+
+      if (elCountdownStatus) elCountdownStatus.classList.add('hidden');
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((diff / (1000 * 60)) % 60);
+      const seconds = Math.floor((diff / 1000) % 60);
+
+      if (cdDays) cdDays.textContent = String(days).padStart(2, '0');
+      if (cdHours) cdHours.textContent = String(hours).padStart(2, '0');
+      if (cdMinutes) cdMinutes.textContent = String(minutes).padStart(2, '0');
+      if (cdSeconds) cdSeconds.textContent = String(seconds).padStart(2, '0');
+    };
+
+    if (countdownInterval) clearInterval(countdownInterval);
+    tick();
+    countdownInterval = setInterval(tick, 1000);
+  }
+
+  async function loadNextDrawDate() {
+    try {
+      const items = await fetchGoogleSheetColumn(SHEET_FECHAS);
+      const validDates = items
+        .map(parseSheetDate)
+        .filter((d) => d && !Number.isNaN(d.getTime()))
+        .sort((a, b) => a.getTime() - b.getTime());
+
+      if (validDates.length > 0) {
+        const now = Date.now();
+        // Elegir la fecha futura más cercana; si todas pasaron, mostrar la última registrada
+        const nextUpcoming = validDates.find((d) => d.getTime() > now) || validDates[validDates.length - 1];
+        startCountdown(nextUpcoming);
+        return;
+      }
+      throw new Error('No se encontraron fechas válidas en la hoja fechas');
+    } catch (err) {
+      console.warn('Usando fecha de respaldo:', err);
+      const fallbackDate = new Date(cfg.FALLBACK_DRAW_DATE_ISO || '2026-12-23T18:00:00-03:00');
+      startCountdown(fallbackDate);
+    }
+  }
+
+  // Iniciar carga en paralelo desde Google Sheets
+  loadLocales();
+  loadNextDrawDate();
+
+  // ========================================================================
+  // 4. FORMULARIO & VISTA PREVIA DEL CUPÓN (Local, Nombre, Celular)
+  // ========================================================================
   const form = document.getElementById('sorteo-form');
   const inputNombre = document.getElementById('nombre');
-  const inputApellido = document.getElementById('apellido');
-  const inputCedula = document.getElementById('cedula');
   const inputCelular = document.getElementById('celular');
-  const inputEmail = document.getElementById('email');
-  const inputDepartamento = document.getElementById('departamento');
-  const checkboxBases = document.getElementById('acepto-bases');
-
   const previewNombre = document.getElementById('preview-nombre');
-  const previewCedula = document.getElementById('preview-cedula');
-  const previewDepartamento = document.getElementById('preview-departamento');
-  const previewCodigo = document.getElementById('preview-codigo');
+  const previewLocal = document.getElementById('preview-local');
+  const previewCelular = document.getElementById('preview-celular');
 
   const submitBtn = document.getElementById('btn-submit-form');
   const submitBtnText = document.getElementById('submit-btn-text');
   const submitSpinner = document.getElementById('submit-spinner');
 
-  // Format Uruguayan CI: X.XXX.XXX-X or XXX.XXX-X
-  function formatCI(raw) {
-    const digits = raw.replace(/\D/g, '').slice(0, 8);
-    if (digits.length <= 1) return digits;
-    const body = digits.slice(0, -1);
-    const check = digits.slice(-1);
-    const withDots = body.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    return `${withDots}-${check}`;
-  }
-
-  // Format Uruguayan Mobile: 09X XXX XXX
   function formatPhone(raw) {
     const digits = raw.replace(/\D/g, '').slice(0, 9);
     if (digits.length <= 3) return digits;
@@ -110,35 +322,32 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
   }
 
-  function updateCouponPreview() {
-    const fullName = `${inputNombre.value.trim()} ${inputApellido.value.trim()}`.trim();
-    previewNombre.textContent = fullName ? fullName.toUpperCase() : 'TU NOMBRE COMPLETO';
-    previewCedula.textContent = inputCedula.value.trim() || '0.000.000-0';
-    previewDepartamento.textContent = inputDepartamento.value || 'Uruguay';
+  function updatePreview() {
+    if (previewNombre) {
+      const val = inputNombre.value.trim();
+      previewNombre.textContent = val ? val.toUpperCase() : 'TU NOMBRE';
+    }
+    if (previewLocal) {
+      previewLocal.textContent = selectLocal.value || 'Seleccioná un local';
+    }
+    if (previewCelular) {
+      previewCelular.textContent = inputCelular.value.trim() || '09X XXX XXX';
+    }
   }
 
-  if (inputNombre) inputNombre.addEventListener('input', updateCouponPreview);
-  if (inputApellido) inputApellido.addEventListener('input', updateCouponPreview);
-  if (inputDepartamento) inputDepartamento.addEventListener('change', updateCouponPreview);
-
-  if (inputCedula) {
-    inputCedula.addEventListener('input', (e) => {
-      e.target.value = formatCI(e.target.value);
-      updateCouponPreview();
-    });
-  }
-
+  if (selectLocal) selectLocal.addEventListener('change', updatePreview);
+  if (inputNombre) inputNombre.addEventListener('input', updatePreview);
   if (inputCelular) {
     inputCelular.addEventListener('input', (e) => {
       e.target.value = formatPhone(e.target.value);
+      updatePreview();
     });
   }
 
-  // Clear field errors on user edit
   if (form) {
     form.querySelectorAll('input, select').forEach((field) => {
       const clearErr = () => {
-        const group = field.closest('.form-group, .form-checkbox-group');
+        const group = field.closest('.form-group');
         if (group) group.classList.remove('has-error');
       };
       field.addEventListener('input', clearErr);
@@ -146,55 +355,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- Validation Helper ---
   function validateForm() {
-    let valid = true;
-
-    const setError = (el, condition) => {
-      const group = el.closest('.form-group, .form-checkbox-group');
+    let isValid = true;
+    const toggleErr = (el, hasError) => {
+      const group = el.closest('.form-group');
       if (!group) return;
-      if (condition) {
+      if (hasError) {
         group.classList.add('has-error');
-        valid = false;
+        isValid = false;
       } else {
         group.classList.remove('has-error');
       }
     };
 
-    setError(inputNombre, inputNombre.value.trim().length < 2);
-    setError(inputApellido, inputApellido.value.trim().length < 2);
-
-    const ciDigits = inputCedula.value.replace(/\D/g, '');
-    setError(inputCedula, ciDigits.length < 7 || ciDigits.length > 8);
+    toggleErr(selectLocal, !selectLocal.value);
+    toggleErr(inputNombre, inputNombre.value.trim().length < 2);
 
     const phoneDigits = inputCelular.value.replace(/\D/g, '');
-    setError(inputCelular, phoneDigits.length < 8 || phoneDigits.length > 9);
+    toggleErr(inputCelular, phoneDigits.length < 8 || phoneDigits.length > 9);
 
-    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inputEmail.value.trim());
-    setError(inputEmail, !emailOk);
-
-    setError(inputDepartamento, !inputDepartamento.value);
-
-    const afiliadoSelected = form.querySelector('input[name="es_afiliado"]:checked');
-    const radioAnchor = form.querySelector('input[name="es_afiliado"]');
-    setError(radioAnchor, !afiliadoSelected);
-
-    setError(checkboxBases, !checkboxBases.checked);
-
-    return valid;
+    return isValid;
   }
 
-  function generateCouponCode() {
-    const num = Math.floor(100000 + Math.random() * 900000);
-    return `${couponPrefix}-${num}`;
-  }
-
-  function getUtmSource() {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('utm_source') || params.get('ref') || 'Directo';
-  }
-
-  // --- Modals ---
+  // --- Modals & Confetti ---
   function openModal(id) {
     const modal = document.getElementById(id);
     if (!modal) return;
@@ -208,10 +391,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.body.style.overflow = '';
   }
-
-  document.querySelectorAll('[data-open-modal]').forEach((btn) => {
-    btn.addEventListener('click', () => openModal(btn.dataset.openModal));
-  });
 
   document.querySelectorAll('[data-close-modal]').forEach((btn) => {
     btn.addEventListener('click', closeAllModals);
@@ -227,7 +406,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') closeAllModals();
   });
 
-  // --- Confetti Burst ---
   function launchConfetti() {
     const layer = document.getElementById('confetti-layer');
     if (!layer) return;
@@ -245,9 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- Submit Handler ---
-  let lastGeneratedCode = '';
-
+  // --- Envío del formulario a la hoja "datos" ---
   if (form) {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -261,35 +437,33 @@ document.addEventListener('DOMContentLoaded', () => {
       submitBtnText.classList.add('hidden');
       submitSpinner.classList.remove('hidden');
 
-      const afiliadoInput = form.querySelector('input[name="es_afiliado"]:checked');
-      const codigoCupon = generateCouponCode();
-      lastGeneratedCode = codigoCupon;
+      const nowFormatted = new Intl.DateTimeFormat('es-UY', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone: 'America/Montevideo'
+      }).format(new Date());
 
       const payload = {
-        campana: campaignName,
-        codigo_cupon: codigoCupon,
+        local: selectLocal.value.trim(),
         nombre: inputNombre.value.trim(),
-        apellido: inputApellido.value.trim(),
-        cedula: inputCedula.value.trim(),
         celular: inputCelular.value.trim(),
-        email: inputEmail.value.trim(),
-        departamento: inputDepartamento.value,
-        es_afiliado: afiliadoInput ? afiliadoInput.value : 'No especificado',
-        acepto_bases: checkboxBases.checked,
-        origen: getUtmSource(),
-        timestamp: new Date().toISOString()
+        timestamp: nowFormatted
       };
 
-      // Local backup in browser storage
+      // Respaldo local en navegador
       try {
-        const stored = JSON.parse(localStorage.getItem('vida_sorteo_entries') || '[]');
-        stored.push(payload);
-        localStorage.setItem('vida_sorteo_entries', JSON.stringify(stored));
+        const saved = JSON.parse(localStorage.getItem('vida_sorteo_datos') || '[]');
+        saved.push(payload);
+        localStorage.setItem('vida_sorteo_datos', JSON.stringify(saved));
       } catch (_) {
-        // Ignore storage errors in private mode
+        // Ignorar en modo incógnito restringido
       }
 
-      let syncMessage = 'Cupón registrado en modo demo local. Configurá WEBHOOK_URL en config.js para enviar a Google Sheets.';
+      let syncNote = 'Falta configurar WEBHOOK_URL en config.js para guardar automáticamente en la hoja "datos" de Google Sheets (ver README.md).';
 
       if (cfg.WEBHOOK_URL && cfg.WEBHOOK_URL.startsWith('http')) {
         try {
@@ -299,77 +473,27 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-          syncMessage = 'Tu participación fue enviada y registrada en nuestra base oficial del sorteo.';
+          syncNote = 'Tus datos fueron guardados correctamente en la hoja "datos" del sorteo.';
         } catch (err) {
-          console.error('Webhook error:', err);
-          syncMessage = 'Tu cupón fue generado y respaldado localmente. Si tenés dudas, escribinos por WhatsApp.';
+          console.error('Error enviando al webhook:', err);
+          syncNote = 'No pudimos confirmar la conexión en este momento, pero tu registro fue respaldado.';
         }
       }
 
-      // Update live preview + success voucher modal
-      previewCodigo.textContent = codigoCupon;
-      document.getElementById('voucher-campaign').textContent = campaignName;
-      document.getElementById('voucher-code').textContent = codigoCupon;
-      document.getElementById('voucher-nombre').textContent = `${payload.nombre} ${payload.apellido}`;
-      document.getElementById('voucher-cedula').textContent = payload.cedula;
-      document.getElementById('voucher-departamento').textContent = payload.departamento;
-      document.getElementById('voucher-fecha').textContent = drawDateLabel;
-      document.getElementById('modal-sync-note').textContent = syncMessage;
-
-      const shareText = encodeURIComponent(
-        `¡Ya estoy participando en el ${campaignName} con mi cupón ${codigoCupon}! Participá vos también gratis aquí: ${window.location.href}`
-      );
-      document.getElementById('btn-share-whatsapp').href = `https://wa.me/?text=${shareText}`;
+      document.getElementById('voucher-local').textContent = payload.local;
+      document.getElementById('voucher-nombre').textContent = payload.nombre;
+      document.getElementById('voucher-celular').textContent = payload.celular;
+      document.getElementById('voucher-timestamp').textContent = nowFormatted;
+      document.getElementById('modal-sync-note').textContent = syncNote;
 
       submitBtn.disabled = false;
       submitBtnText.classList.remove('hidden');
       submitSpinner.classList.add('hidden');
 
+      form.reset();
+      updatePreview();
       openModal('modal-success');
       launchConfetti();
     });
   }
-
-  // --- Copy & Print Actions ---
-  const btnCopy = document.getElementById('btn-copy-code');
-  if (btnCopy) {
-    btnCopy.addEventListener('click', async () => {
-      if (!lastGeneratedCode) return;
-      try {
-        await navigator.clipboard.writeText(lastGeneratedCode);
-        btnCopy.innerHTML = '<i class="fa-solid fa-check"></i> ¡Copiado!';
-        setTimeout(() => {
-          btnCopy.innerHTML = '<i class="fa-regular fa-copy"></i> Copiar Código';
-        }, 2000);
-      } catch (_) {
-        // Fallback if clipboard API unavailable
-      }
-    });
-  }
-
-  const btnPrint = document.getElementById('btn-print-voucher');
-  if (btnPrint) {
-    btnPrint.addEventListener('click', () => window.print());
-  }
-
-  // --- FAQ Accordion ---
-  document.querySelectorAll('.faq-question').forEach((button) => {
-    button.addEventListener('click', () => {
-      const item = button.closest('.faq-item');
-      const answer = item.querySelector('.faq-answer');
-      const isOpen = item.classList.contains('active');
-
-      document.querySelectorAll('.faq-item').forEach((other) => {
-        other.classList.remove('active');
-        other.querySelector('.faq-question').setAttribute('aria-expanded', 'false');
-        other.querySelector('.faq-answer').style.maxHeight = null;
-      });
-
-      if (!isOpen) {
-        item.classList.add('active');
-        button.setAttribute('aria-expanded', 'true');
-        answer.style.maxHeight = `${answer.scrollHeight}px`;
-      }
-    });
-  });
 });
