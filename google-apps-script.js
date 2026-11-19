@@ -47,7 +47,9 @@ function doPost(e) {
     }
 
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    let sheet = ss.getSheetByName(SHEET_DATOS);
+    let sheet = ss.getSheets().find(function(s) {
+      return s.getName().trim().toLowerCase() === SHEET_DATOS.toLowerCase();
+    });
     if (!sheet) {
       sheet = ss.insertSheet(SHEET_DATOS);
     }
@@ -103,7 +105,9 @@ function doGet() {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
     const readFirstColumn = function(sheetName) {
-      const sh = ss.getSheetByName(sheetName);
+      const sh = ss.getSheets().find(function(s) {
+        return s.getName().trim().toLowerCase() === sheetName.toLowerCase();
+      });
       if (!sh || sh.getLastRow() === 0) return [];
       const values = sh.getRange(1, 1, sh.getLastRow(), 1).getDisplayValues();
       return values
