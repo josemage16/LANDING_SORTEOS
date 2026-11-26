@@ -51,6 +51,7 @@
 html {
   scroll-behavior: smooth;
   font-size: 16px;
+  overflow-x: clip;
 }
 
 body {
@@ -58,8 +59,24 @@ body {
   background-color: var(--bg-page);
   color: var(--text-main);
   line-height: 1.6;
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
+}
+
+section[id] {
+  scroll-margin-top: 84px;
+}
+
+.hero-content,
+.hero-visual,
+.cb-left,
+.cb-right,
+.form-card,
+.coupon-preview-panel,
+.bv-content,
+.bv-gallery,
+.info-card {
+  min-width: 0;
 }
 
 h1, h2, h3, h4 {
@@ -1462,8 +1479,34 @@ button {
 }
 
 /* ==========================================================================
-   Responsive
+   Responsive (Tablet, Mobile & Extra-Small Phones)
    ========================================================================== */
+.form-group select {
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+.modal-dialog {
+  max-height: 92dvh;
+  overflow-y: auto;
+}
+
+@media (max-width: 1024px) {
+  .hero-grid {
+    gap: 32px;
+  }
+
+  .countdown-banner-card {
+    padding: 24px 26px;
+    gap: 22px;
+  }
+
+  .bv-banner {
+    padding: 36px 32px;
+    gap: 28px;
+  }
+}
+
 @media (max-width: 992px) {
   .main-nav,
   #btn-header-cta {
@@ -1481,35 +1524,213 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .hero-section {
+    padding: 52px 0 88px;
+  }
+
+  .hero-ticket-showcase {
+    max-width: 520px;
+    width: 100%;
+    margin: 12px auto 0;
+  }
+
+  .countdown-banner-card {
+    text-align: center;
+  }
+
+  .countdown-boxes {
+    justify-content: center;
+  }
+
   .info-cards-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  /* Priorizar el formulario primero en móvil/tablet */
+  .form-card {
+    order: -1;
+  }
+
   .coupon-preview-panel {
     position: static;
+    max-width: 520px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .footer-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+  }
+
+  .footer-brand {
+    grid-column: 1 / -1;
   }
 }
 
 @media (max-width: 640px) {
+  .container {
+    padding: 0 16px;
+  }
+
+  .top-announcement-bar {
+    font-size: 0.8rem;
+    padding: 8px 0;
+  }
+
+  .top-bar-container {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .top-announcement-text {
+    justify-content: center;
+    gap: 6px;
+  }
+
   .top-contact-links {
     display: none;
   }
 
+  .header-container {
+    height: 64px;
+  }
+
+  .header-logo-img {
+    height: 36px;
+  }
+
+  .mobile-drawer {
+    padding: 16px 16px 22px;
+  }
+
+  .mobile-nav-item {
+    padding: 10px 0;
+  }
+
+  .section {
+    padding: 52px 0;
+  }
+
+  .section-header {
+    margin-bottom: 30px;
+  }
+
+  .section-subtitle {
+    font-size: 0.96rem;
+  }
+
   .hero-section {
-    padding: 46px 0 80px;
+    padding: 40px 0 74px;
+  }
+
+  .eyebrow-pill {
+    font-size: 0.78rem;
+    padding: 6px 12px;
+    border-radius: 14px;
+    line-height: 1.35;
+  }
+
+  .hero-title {
+    font-size: 1.85rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.98rem;
+  }
+
+  .double-chance-callout {
+    padding: 12px 14px;
+    gap: 12px;
+  }
+
+  .btn-pill {
+    white-space: normal;
+    text-align: center;
+    min-height: 46px;
+  }
+
+  .btn-lg {
+    padding: 13px 20px;
+    font-size: 0.98rem;
+  }
+
+  .hero-actions,
+  .bv-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .hero-actions .btn-pill,
+  .bv-actions .btn-pill {
+    width: 100%;
+  }
+
+  .ticket-top,
+  .ticket-body,
+  .ticket-footer,
+  .live-coupon-header,
+  .live-coupon-body,
+  .live-coupon-footer {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .ticket-logo,
+  .live-coupon-logo {
+    height: 30px;
+  }
+
+  .prize-amount-hero {
+    font-size: 2.35rem;
+  }
+
+  .ticket-footer {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .ticket-cta-mini {
+    justify-content: center;
+    padding: 11px 16px;
+  }
+
+  .countdown-banner-section {
+    margin-top: -32px;
   }
 
   .countdown-banner-card {
-    padding: 22px 18px;
+    padding: 20px 16px;
+    gap: 16px;
+    border-radius: 20px;
+  }
+
+  .countdown-boxes {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+    align-items: center;
+    width: 100%;
+    gap: 6px;
   }
 
   .cb-unit {
-    min-width: 62px;
-    padding: 10px 6px;
+    min-width: 0;
+    width: 100%;
+    padding: 10px 4px;
+    border-radius: 12px;
   }
 
   .cb-num {
-    font-size: 1.5rem;
+    font-size: 1.45rem;
+  }
+
+  .cb-lbl {
+    font-size: 0.66rem;
+  }
+
+  .cb-sep {
+    font-size: 1.25rem;
   }
 
   .info-cards-grid,
@@ -1520,15 +1741,100 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .info-card {
+    padding: 22px 18px;
+  }
+
   .form-card {
-    padding: 24px 20px;
+    padding: 24px 18px;
+    border-radius: 20px;
+  }
+
+  .form-group input[type="text"],
+  .form-group input[type="tel"],
+  .form-group select {
+    font-size: 16px;
+    padding: 13px 14px;
+  }
+
+  .live-name {
+    font-size: 1.22rem;
   }
 
   .bv-banner {
-    padding: 28px 20px;
+    padding: 26px 18px;
+    border-radius: 20px;
+  }
+
+  .bv-logo {
+    height: 42px;
+  }
+
+  .bv-tile {
+    height: 175px;
+  }
+
+  .main-footer {
+    padding-top: 44px;
+  }
+
+  .footer-bottom {
+    padding: 18px 0 82px;
+  }
+
+  .whatsapp-float {
+    width: 52px;
+    height: 52px;
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .modal-overlay {
+    padding: 12px;
   }
 
   .modal-dialog {
-    padding: 26px 20px;
+    padding: 24px 18px;
+    border-radius: 20px;
+  }
+
+  .voucher-top {
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 400px) {
+  .hero-title {
+    font-size: 1.6rem;
+  }
+
+  .ticket-badge-floating {
+    right: 10px;
+    font-size: 0.76rem;
+    padding: 6px 12px;
+  }
+
+  .ticket-meta-grid,
+  .live-details-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .countdown-boxes {
+    gap: 4px;
+  }
+
+  .cb-num {
+    font-size: 1.25rem;
+  }
+
+  .cb-lbl {
+    font-size: 0.6rem;
+  }
+
+  .cb-sep {
+    font-size: 1rem;
   }
 }
